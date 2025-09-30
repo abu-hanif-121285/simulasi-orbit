@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mengapa Planet Tidak Jatuh? - Simulasi Orbit Tata Surya & Gerhana</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .floating {
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        .orbit-path {
+            stroke-dasharray: 5, 5;
+            animation: rotate 20s linear infinite;
+        }
+        
+        @keyframes rotate {
+            from { stroke-dashoffset: 0; }
+            to { stroke-dashoffset: 10; }
+        }
+        
+        .planet {
+            transition: all 0.3s ease;
+        }
+        
+        .planet:hover {
+            transform: scale(1.2);
+            filter: brightness(1.2);
+        }
+        
+        .no-gravity .planet {
+            animation: flyOff 3s ease-out forwards;
+        }
+        
+        @keyframes flyOff {
+            to {
+                transform: translate(500px, -300px);
+                opacity: 0;
+            }
+        }
+        
+        .glow {
+            filter: drop-shadow(0 0 20px rgba(255, 255, 0, 0.5));
+        }
+        
+        .info-card {
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.9);
+        }
+        
+        .eclipse-container {
+            display: none;
+            position: relative;
+            height: 400px;
+            overflow: hidden;
+        }
+        
+        .eclipse-container.active {
+            display: block;
+        }
+        
+        .shadow {
+            position: absolute;
+            background: radial-gradient(ellipse at center, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0) 100%);
+            transform-origin: center;
+            z-index: 10;
+        }
+        
+        .earth-surface {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 100px;
+            background: linear-gradient(to top, #4a7c59, #2d5a3d);
+            z-index: 5;
+        }
+        
+        .stars {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                radial-gradient(2px 2px at 20px 30px, white, transparent),
+                radial-gradient(2px 2px at 40px 70px, white, transparent),
+                radial-gradient(1px 1px at 50px 160px, white, transparent),
+                radial-gradient(1px 1px at 130px 40px, white, transparent),
+                radial-gradient(2px 2px at 80px 10px, white, transparent);
+            background-repeat: repeat;
+            background-size: 200px 200px;
+            opacity: 0.5;
+        }
+        
+        @keyframes moveMoon {
+            0% { transform: translateX(-100px); }
+            100% { transform: translateX(calc(100vw + 100px)); }
+        }
+        
+        @keyframes moveEarth {
+            0% { transform: translateX(-100px); }
+            100% { transform: translateX(calc(100vw + 100px)); }
+        }
+        
+        .moon-path {
+            animation: moveMoon 10s linear infinite;
+        }
+        
+        .earth-path {
+            animation: moveEarth 10s linear infinite;
+        }
+        
+        .eclipse-active .moon-path {
+            animation-play-state: paused;
+        }
+        
+        .eclipse-active .earth-path {
+            animation-play-state: paused;
+        }
+        
+        .eclipse-phase {
+            transition: all 1s ease;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-b from-gray-900 via-blue-900 to-black min-h-screen text-white overflow-x-hidden">
+    <!-- Header -->
+    <header class="bg-black/50 backdrop-blur-md sticky top-0 z-50 border-b border-white/10">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-globe text-3xl text-blue-400"></i>
+                    <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                        Mengapa Planet Tidak Jatuh? & Simulasi Gerhana
+                    </h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span id="gravityStatus" class="text-sm font-medium text-green-400">
+                        <i class="fas fa-check-circle"></i> Gravitasi Aktif
+                    </span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8">
+        <!-- Control Panel -->
+        <section class="mb-8">
+            <div class="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <i class="fas fa-sliders-h mr-2"></i> Kontrol Simulasi
+                </h2>
+                <div class="flex flex-wrap gap-4">
+                    <button id="toggleGravity" class="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg font-medium hover:from-blue-600 hover:to-purple-600 transform hover:scale-105 transition-all duration-200 shadow-lg">
+                        <i class="fas fa-magnet mr-2"></i>
+                        <span id="gravityButtonText">Matikan Gravitasi</span>
+                    </button>
+                    <button id="resetSimulation" class="px-6 py-3 bg-gradient-to-r from-green-500 to-teal-500 rounded-lg font-medium hover:from-green-600 hover:to-teal-600 transform hover:scale-105 transition-all duration-200 shadow-lg">
+                        <i class="fas fa-redo mr-2"></i> Reset Simulasi
+                    </button>
+                    <button id="toggleSpeed" class="px-6 py-3 bg-gradient-to-r from-orange-500 to-red-500 rounded-lg font-medium hover:from-orange-600 hover:to-red-600 transform hover:scale-105 transition-all duration-200 shadow-lg">
+                        <i class="fas fa-tachometer-alt mr-2"></i> <span id="speedText">Kecepatan Normal</span>
+                    </button>
+                    <button id="solarEclipse" class="px-6 py-3 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-lg font-medium hover:from-yellow-600 hover:to-orange-600 transform hover:scale-105 transition-all duration-200 shadow-lg">
+                        <i class="fas fa-sun mr-2"></i> Gerhana Matahari
+                    </button>
+                    <button id="lunarEclipse" class="px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-lg font-medium hover:from-indigo-600 hover:to-purple-600 transform hover:scale-105 transition-all duration-200 shadow-lg">
+                        <i class="fas fa-moon mr-2"></i> Gerhana Bulan
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Simulation Area -->
+        <section class="mb-8">
+            <div class="bg-black/30 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <i class="fas fa-satellite mr-2"></i> Simulasi Orbit
+                </h2>
+                <div id="orbitSimulation" class="relative bg-gradient-to-b from-gray-800 to-gray-900 rounded-xl overflow-hidden" style="height: 500px;">
+                    <svg id="solarSystem" class="w-full h-full">
+                        <!-- Stars background -->
+                        <defs>
+                            <pattern id="stars" x="0" y="0" width="100" height="100" patternUnits="userSpaceOnUse">
+                                <circle cx="20" cy="20" r="1" fill="white" opacity="0.8"/>
+                                <circle cx="50" cy="50" r="0.5" fill="white" opacity="0.6"/>
+                                <circle cx="80" cy="30" r="1.5" fill="white" opacity="0.7"/>
+                                <circle cx="30" cy="80" r="0.8" fill="white" opacity="0.9"/>
+                            </pattern>
+                        </defs>
+                        <rect width="100%" height="100%" fill="url(#stars)"/>
+                        
+                        <!-- Sun -->
+                        <g id="sun" class="glow">
+                            <circle cx="50%" cy="50%" r="40" fill="url(#sunGradient)"/>
+                            <defs>
+                                <radialGradient id="sunGradient">
+                                    <stop offset="0%" stop-color="#FFF5B4"/>
+                                    <stop offset="50%" stop-color="#FFEB3B"/>
+                                    <stop offset="100%" stop-color="#FF9800"/>
+                                </radialGradient>
+                            </defs>
+                        </g>
+                        
+                        <!-- Orbit paths -->
+                        <g id="orbits">
+                            <circle cx="50%" cy="50%" r="100" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1" class="orbit-path"/>
+                            <circle cx="50%" cy="50%" r="150" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1" class="orbit-path"/>
+                            <circle cx="50%" cy="50%" r="200" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1" class="orbit-path"/>
+                            <circle cx="50%" cy="50%" r="250" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1" class="orbit-path"/>
+                        </g>
+                        
+                        <!-- Planets -->
+                        <g id="planets">
+                            <!-- Mercury -->
+                            <g class="planet" data-planet="mercury">
+                                <circle cx="0" cy="0" r="8" fill="#8C7853"/>
+                                <text x="15" y="5" fill="white" font-size="12" opacity="0.8">Merkurius</text>
+                            </g>
+                            
+                            <!-- Venus -->
+                            <g class="planet" data-planet="venus">
+                                <circle cx="0" cy="0" r="12" fill="#FFC649"/>
+                                <text x="15" y="5" fill="white" font-size="12" opacity="0.8">Venus</text>
+                            </g>
+                            
+                            <!-- Earth -->
+                            <g class="planet" data-planet="earth">
+                                <circle cx="0" cy="0" r="13" fill="url(#earthGradient)"/>
+                                <defs>
+                                    <radialGradient id="earthGradient">
+                                        <stop offset="0%" stop-color="#4FC3F7"/>
+                                        <stop offset="50%" stop-color="#2196F3"/>
+                                        <stop offset="100%" stop-color="#1565C0"/>
+                                    </radialGradient>
+                                </defs>
+                                <text x="15" y="5" fill="white" font-size="12" opacity="0.8">Bumi</text>
+                            </g>
+                            
+                            <!-- Mars -->
+                            <g class="planet" data-planet="mars">
+                                <circle cx="0" cy="0" r="10" fill="#CD5C5C"/>
+                                <text x="15" y="5" fill="white" font-size="12" opacity="0.8">Mars</text>
+                            </g>
+                        </g>
+                        
+                        <!-- Velocity vectors (shown when gravity is off) -->
+                        <g id="velocityVectors" style="display: none;">
+                            <defs>
+                                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                                    <polygon points="0 0, 10 3.5, 0 7" fill="#FFD700"/>
+                                </marker>
+                            </defs>
+                        </g>
+                    </svg>
+                </div>
+
+                <!-- Solar Eclipse Simulation -->
+                <div id="solarEclipseSimulation" class="eclipse-container bg-gradient-to-b from-blue-400 to-blue-600 rounded-xl overflow-hidden">
+                    <div class="stars"></div>
+                    
+                    <!-- Sun -->
+                    <div class="absolute top-20 left-1/2 transform -translate-x-1/2 w-24 h-24 bg-yellow-400 rounded-full glow"></div>
+                    
+                    <!-- Moon path -->
+                    <div class="moon-path absolute top-20 left-0 transform -translate-y-1/2">
+                        <div class="w-16 h-16 bg-gray-300 rounded-full shadow-xl"></div>
+                        <div class="shadow absolute top-0 left-0 w-16 h-16 rounded-full" style="width: 200px; height: 200px; top: -70px; left: -70px;"></div>
+                    </div>
+                    
+                    <!-- Earth surface -->
+                    <div class="earth-surface"></div>
+                    
+                    <!-- Eclipse phase indicator -->
+                    <div class="absolute top-4 right-4 bg-black/50 px-3 py-1 rounded-lg">
+                        <span id="solarEclipsePhase" class="text-sm font-medium">Fase: Normal</span>
+                    </div>
+                </div>
+
+                <!-- Lunar Eclipse Simulation -->
+                <div id="lunarEclipseSimulation" class="eclipse-container bg-gradient-to-b from-gray-800 to-black rounded-xl overflow-hidden">
+                    <div class="stars"></div>
+                    
+                    <!-- Sun -->
+                    <div class="absolute top-20 left-1/4 transform -translate-x-1/2 w-24 h-24 bg-yellow-400 rounded-full glow"></div>
+                    
+                    <!-- Earth path -->
+                    <div class="earth-path absolute top-20 left-0 transform -translate-y-1/2">
+                        <div class="w-20 h-20 bg-blue-500 rounded-full shadow-xl"></div>
+                        <div class="shadow absolute top-0 left-0 w-20 h-20 rounded-full" style="width: 300px; height: 300px; top: -140px; left: -140px; opacity: 0.7;"></div>
+                    </div>
+                    
+                    <!-- Moon -->
+                    <div class="absolute top-20 right-1/4 transform translate-x-1/2 w-16 h-16 bg-gray-200 rounded-full shadow-xl" id="lunarEclipseMoon"></div>
+                    
+                    <!-- Eclipse phase indicator -->
+                    <div class="absolute top-4 right-4 bg-black/50 px-3 py-1 rounded-lg">
+                        <span id="lunarEclipsePhase" class="text-sm font-medium">Fase: Normal</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Explanation Cards -->
+        <section class="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            <!-- Card 1: Gravitasi -->
+            <div class="info-card rounded-2xl p-6 border border-white/20 transform hover:scale-105 transition-all duration-300">
+                <div class="flex items-center mb-4">
+                    <div class="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center mr-3">
+                        <i class="fas fa-magnet text-white"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-800">Gravitasi</h3>
+                </div>
+                <p class="text-gray-700">
+                    Matahari memiliki gravitasi yang sangat kuat yang menarik semua planet ke arahnya. Gaya ini berfungsi sebagai gaya sentripetal yang membuat planet tetap pada orbitnya.
+                </p>
+            </div>
+
+            <!-- Card 2: Kecepatan Tangensial -->
+            <div class="info-card rounded-2xl p-6 border border-white/20 transform hover:scale-105 transition-all duration-300">
+                <div class="flex items-center mb-4">
+                    <div class="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center mr-3">
+                        <i class="fas fa-rocket text-white"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-800">Kecepatan Tangensial</h3>
+                </div>
+                <p class="text-gray-700">
+                    Planet bergerak dengan kecepatan tinggi yang tegak lurus terhadap arah gravitasi. Kecepatan ini mencegah planet jatuh ke matahari.
+                </p>
+            </div>
+
+            <!-- Card 3: Keseimbangan -->
+            <div class="info-card rounded-2xl p-6 border border-white/20 transform hover:scale-105 transition-all duration-300">
+                <div class="flex items-center mb-4">
+                    <div class="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center mr-3">
+                        <i class="fas fa-balance-scale text-white"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-800">Keseimbangan Sempurna</h3>
+                </div>
+                <p class="text-gray-700">
+                    Orbit tercipta karena keseimbangan antara gravitasi (menarik ke dalam) dan kecepatan tangensial (mendorong ke luar).
+                </p>
+            </div>
+        </section>
+
+        <!-- Eclipse Explanation Cards -->
+        <section class="grid md:grid-cols-2 gap-6 mb-8" id="eclipseCards" style="display: none;">
+            <!-- Card 1: Gerhana Matahari -->
+            <div class="info-card rounded-2xl p-6 border border-white/20 transform hover:scale-105 transition-all duration-300">
+                <div class="flex items-center mb-4">
+                    <div class="w-12 h-12 bg-yellow-500 rounded-full flex items-center justify-center mr-3">
+                        <i class="fas fa-sun text-white"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-800">Gerhana Matahari</h3>
+                </div>
+                <p class="text-gray-700">
+                    Terjadi ketika bulan berada di antara matahari dan bumi, sehingga bayangan bulan jatuh di permukaan bumi. Gerhana matahari hanya terjadi saat bulan baru.
+                </p>
+                <ul class="mt-3 text-gray-700 list-disc list-inside">
+                    <li>Gerhana Total: Seluruh matahari tertutup bulan</li>
+                    <li>Gerhana Sebagian: Hanya sebagian matahari tertutup</li>
+                    <li>Gerhana Cincin: Bulan tidak menutup seluruh matahari</li>
+                </ul>
+            </div>
+
+            <!-- Card 2: Gerhana Bulan -->
+            <div class="info-card rounded-2xl p-6 border border-white/20 transform hover:scale-105 transition-all duration-300">
+                <div class="flex items-center mb-4">
+                    <div class="w-12 h-12 bg-indigo-500 rounded-full flex items-center justify-center mr-3">
+                        <i class="fas fa-moon text-white"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-800">Gerhana Bulan</h3>
+                </div>
+                <p class="text-gray-700">
+                    Terjadi ketika bumi berada di antara matahari dan bulan, sehingga bayangan bumi jatuh di permukaan bulan. Gerhana bulan hanya terjadi saat bulan purnama.
+                </p>
+                <ul class="mt-3 text-gray-700 list-disc list-inside">
+                    <li>Gerhana Total: Seluruh bulan masuk bayangan bumi</li>
+                    <li>Gerhana Sebagian: Hanya sebagian bulan yang masuk bayangan</li>
+                    <li>Gerhana Penumbra: Bulan melewati bayangan samar bumi</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- Interactive Explanation -->
+        <section class="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+            <h2 class="text-xl font-semibold mb-4 flex items-center">
+                <i class="fas fa-lightbulb mr-2"></i> Penjelasan Interaktif
+            </h2>
+            <div id="explanationText" class="space-y-4">
+                <p class="text-lg leading-relaxed">
+                    Saat ini, gravitasi <span class="text-green-400 font-semibold">AKTIF</span>. Planet-planet bergerak pada orbitnya karena adanya keseimbangan sempurna antara dua gaya:
+                </p>
+                <ul class="list-disc list-inside space-y-2 ml-4">
+                    <li><strong>Gaya Gravitasi:</strong> Menarik planet menuju matahari</li>
+                    <li><strong>Gaya Sentrifugal:</strong> Mendorong planet menjauhi matahari karena kecepatan tangensialnya</li>
+                </ul>
+                <p class="text-lg leading-relaxed">
+                    Coba matikan gravitasi untuk melihat apa yang terjadi!
+                </p>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-black/50 backdrop-blur-md mt-12 py-6 border-t border-white/10">
+        <div class="container mx-auto px-4 text-center">
+            <p class="text-sm opacity-75">
+                <i class="fas fa-graduation-cap mr-2"></i>
+                Edukasi Fisika - Memahami Mekanika Orbit Tata Surya & Fenomena Gerhana
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        // State management
+        let gravityEnabled = true;
+        let animationSpeed = 1;
+        let animationFrame;
+        let planetAngles = {
+            mercury: 0,
+            venus: 45,
+            earth: 90,
+            mars: 180
+        };
+        let currentSimulation = 'orbit'; // 'orbit', 'solarEclipse', 'lunarEclipse'
+
+        // Planet configurations
+        const planets = {
+            mercury: { radius: 100, speed: 4, size: 8 },
+            venus: { radius: 150, speed: 3, size: 12 },
+            earth: { radius: 200, speed: 2, size: 13 },
+            mars: { radius: 250, speed: 1.5, size: 10 }
+        };
+
+        // Get elements
+        const toggleGravityBtn = document.getElementById('toggleGravity');
+        const resetBtn = document.getElementById('resetSimulation');
+        const toggleSpeedBtn = document.getElementById('toggleSpeed');
+        const solarEclipseBtn = document.getElementById('solarEclipse');
+        const lunarEclipseBtn = document.getElementById('lunarEclipse');
+        const gravityStatus = document.getElementById('gravityStatus');
+        const gravityButtonText = document.getElementById('gravityButtonText');
+        const speedText = document.getElementById('speedText');
+        const explanationText = document.getElementById('explanationText');
+        const solarSystem = document.getElementById('solarSystem');
+        const velocityVectors = document.getElementById('velocityVectors');
+        const orbitSimulation = document.getElementById('orbitSimulation');
+        const solarEclipseSimulation = document.getElementById('solarEclipseSimulation');
+        const lunarEclipseSimulation = document.getElementById('lunarEclipseSimulation');
+        const solarEclipsePhase = document.getElementById('solarEclipsePhase');
+        const lunarEclipsePhase = document.getElementById('lunarEclipsePhase');
+        const eclipseCards = document.getElementById('eclipseCards');
+        const lunarEclipseMoon = document.getElementById('lunarEclipseMoon');
+
+        // Initialize
+        function init() {
+            updatePlanetPositions();
+            animate();
+        }
+
+        // Animate planets
+        function animate() {
+            if (gravityEnabled && currentSimulation === 'orbit') {
+                Object.keys(planets).forEach(planetName => {
+                    planetAngles[planetName] += planets[planetName].speed * animationSpeed * 0.5;
+                    if (planetAngles[planetName] >= 360) {
+                        planetAngles[planetName] -= 360;
+                    }
+                });
+                updatePlanetPositions();
+            }
+            animationFrame = requestAnimationFrame(animate);
+        }
+
+        // Update planet positions
+        function updatePlanetPositions() {
+            const centerX = solarSystem.clientWidth / 2;
+            const centerY = solarSystem.clientHeight / 2;
+
+            Object.keys(planets).forEach(planetName => {
+                const planet = document.querySelector(`[data-planet="${planetName}"]`);
+                const config = planets[planetName];
+                const angle = planetAngles[planetName] * Math.PI / 180;
+                
+                const x = centerX + config.radius * Math.cos(angle);
+                const y = centerY + config.radius * Math.sin(angle);
+                
+                planet.setAttribute('transform', `translate(${x}, ${y})`);
+            });
+        }
+
+        // Toggle gravity
+        toggleGravityBtn.addEventListener('click', () => {
+            gravityEnabled = !gravityEnabled;
+            
+            if (gravityEnabled) {
+                gravityStatus.innerHTML = '<i class="fas fa-check-circle"></i> Gravitasi Aktif';
+                gravityStatus.className = 'text-sm font-medium text-green-400';
+                gravityButtonText.textContent = 'Matikan Gravitasi';
+                toggleGravityBtn.className = 'px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg font-medium hover:from-blue-600 hover:to-purple-600 transform hover:scale-105 transition-all duration-200 shadow-lg';
+                solarSystem.classList.remove('no-gravity');
+                velocityVectors.style.display = 'none';
+                
+                explanationText.innerHTML = `
+                    <p class="text-lg leading-relaxed">
+                        Saat ini, gravitasi <span class="text-green-400 font-semibold">AKTIF</span>. Planet-planet bergerak pada orbitnya karena adanya keseimbangan sempurna antara dua gaya:
+                    </p>
+                    <ul class="list-disc list-inside space-y-2 ml-4">
+                        <li><strong>Gaya Gravitasi:</strong> Menarik planet menuju matahari</li>
+                        <li><strong>Gaya Sentrifugal:</strong> Mendorong planet menjauhi matahari karena kecepatan tangensialnya</li>
+                    </ul>
+                    <p class="text-lg leading-relaxed">
+                        Coba matikan gravitasi untuk melihat apa yang terjadi!
+                    </p>
+                `;
+            } else {
+                gravityStatus.innerHTML = '<i class="fas fa-times-circle"></i> Gravitasi Nonaktif';
+                gravityStatus.className = 'text-sm font-medium text-red-400';
+                gravityButtonText.textContent = 'Aktifkan Gravitasi';
+                toggleGravityBtn.className = 'px-6 py-3 bg-gradient-to-r from-red-500 to-pink-500 rounded-lg font-medium hover:from-red-600 hover:to-pink-600 transform hover:scale-105 transition-all duration-200 shadow-lg';
+                solarSystem.classList.add('no-gravity');
+                showVelocityVectors();
+                
+                explanationText.innerHTML = `
+                    <p class="text-lg leading-relaxed">
+                        Saat ini, gravitasi <span class="text-red-400 font-semibold">NONAKTIF</span>. Tanpa gravitasi, planet-planet akan terus bergerak lurus sesuai hukum gerak Newton!
+                    </p>
+                    <ul class="list-disc list-inside space-y-2 ml-4">
+                        <li><strong>Hukum Gerak Newton I:</strong> Benda akan tetap bergerak lurus dengan kecepatan konstan jika tidak ada gaya yang bekerja</li>
+                        <li><strong>Arah Gerak:</strong> Planet bergerak lurus dengan arah tangensial terhadap orbit semula</li>
+                        <li><strong>Hasilnya:</strong> Planet akan "terbang" menjauhi tata surya!</li>
+                    </ul>
+                    <p class="text-lg leading-relaxed">
+                        Aktifkan kembali gravitasi untuk melihat planet kembali ke orbitnya.
+                    </p>
+                `;
+            }
+        });
+
+        // Show velocity vectors
+        function showVelocityVectors() {
+            velocityVectors.style.display = 'block';
+            velocityVectors.innerHTML = `
+                <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#FFD700"/>
+                    </marker>
+                </defs>
+            `;
+            
+            const centerX = solarSystem.clientWidth / 2;
+            const centerY = solarSystem.clientHeight / 2;
+            
+            Object.keys(planets).forEach(planetName => {
+                const config = planets[planetName];
+                const angle = planetAngles[planetName] * Math.PI / 180;
+                const x = centerX + config.radius * Math.cos(angle);
+                const y = centerY + config.radius * Math.sin(angle);
+                
+                // Velocity vector is perpendicular to radius
+                const vx = -Math.sin(angle) * 50;
+                const vy = Math.cos(angle) * 50;
+                
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', x);
+                line.setAttribute('y1', y);
+                line.setAttribute('x2', x + vx);
+                line.setAttribute('y2', y + vy);
+                line.setAttribute('stroke', '#FFD700');
+                line.setAttribute('stroke-width', '3');
+                line.setAttribute('marker-end', 'url(#arrowhead)');
+                line.setAttribute('opacity', '0.8');
+                
+                velocityVectors.appendChild(line);
+            });
+        }
+
+        // Reset simulation
+        resetBtn.addEventListener('click', () => {
+            planetAngles = {
+                mercury: 0,
+                venus: 45,
+                earth: 90,
+                mars: 180
+            };
+            
+            if (!gravityEnabled) {
+                toggleGravityBtn.click();
+            }
+            
+            if (currentSimulation !== 'orbit') {
+                showOrbitSimulation();
+            }
+            
+            updatePlanetPositions();
+        });
+
+        // Toggle speed
+        toggleSpeedBtn.addEventListener('click', () => {
+            if (animationSpeed === 1) {
+                animationSpeed = 2;
+                speedText.textContent = 'Kecepatan Cepat';
+                toggleSpeedBtn.className = 'px-6 py-3 bg-gradient-to-r from-red-500 to-pink-500 rounded-lg font-medium hover:from-red-600 hover:to-pink-600 transform hover:scale-105 transition-all duration-200 shadow-lg';
+            } else if (animationSpeed === 2) {
+                animationSpeed = 0.5;
+                speedText.textContent = 'Kecepatan Lambat';
+                toggleSpeedBtn.className = 'px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-lg font-medium hover:from-blue-600 hover:to-cyan-600 transform hover:scale-105 transition-all duration-200 shadow-lg';
+            } else {
+                animationSpeed = 1;
+                speedText.textContent = 'Kecepatan Normal';
+                toggleSpeedBtn.className = 'px-6 py-3 bg-gradient-to-r from-orange-500 to-red-500 rounded-lg font-medium hover:from-orange-600 hover:to-red-600 transform hover:scale-105 transition-all duration-200 shadow-lg';
+            }
+        });
+
+        // Show solar eclipse simulation
+        solarEclipseBtn.addEventListener('click', () => {
+            if (currentSimulation === 'solarEclipse') {
+                showOrbitSimulation();
+                return;
+            }
+            
+            currentSimulation = 'solarEclipse';
+            orbitSimulation.style.display = 'none';
+            solarEclipseSimulation.style.display = 'block';
+            lunarEclipseSimulation.style.display = 'none';
+            eclipseCards.style.display = 'grid';
+            
+            // Reset animation
+            const moonPath = solarEclipseSimulation.querySelector('.moon-path');
+            moonPath.style.animation = 'none';
+            setTimeout(() => {
+                moonPath.style.animation = 'moveMoon 10s linear infinite';
+            }, 10);
+            
+            // Update explanation
+            explanationText.innerHTML = `
+                <p class="text-lg leading-relaxed">
+                    Anda sedang melihat simulasi <span class="text-yellow-400 font-semibold">GERHANA MATAHARI</span>. Gerhana terjadi ketika bulan berada di antara matahari dan bumi.
+                </p>
+                <ul class="list-disc list-inside space-y-2 ml-4">
+                    <li><strong>Posisi Bulan:</strong> Berada di antara matahari dan bumi</li>
+                    <li><strong>Bayangan Bulan:</strong> Jatuh di permukaan bumi</li>
+                    <li><strong>Waktu Terjadi:</strong> Hanya saat bulan baru</li>
+                </ul>
+                <p class="text-lg leading-relaxed">
+                    Perhatikan bagaimana bayangan bulan bergerak melintasi permukaan bumi saat gerhana terjadi!
+                </p>
+            `;
+            
+            // Simulate eclipse phases
+            simulateSolarEclipse();
+        });
+
+        // Show lunar eclipse simulation
+        lunarEclipseBtn.addEventListener('click', () => {
+            if (currentSimulation === 'lunarEclipse') {
+                showOrbitSimulation();
+                return;
+            }
+            
+            currentSimulation = 'lunarEclipse';
+            orbitSimulation.style.display = 'none';
+            solarEclipseSimulation.style.display = 'none';
+            lunarEclipseSimulation.style.display = 'block';
+            eclipseCards.style.display = 'grid';
+            
+            // Reset animation
+            const earthPath = lunarEclipseSimulation.querySelector('.earth-path');
+            earthPath.style.animation = 'none';
+            setTimeout(() => {
+                earthPath.style.animation = 'moveEarth 10s linear infinite';
+            }, 10);
+            
+            // Reset moon color
+            lunarEclipseMoon.style.background = 'radial-gradient(circle at 30% 30%, #f0f0f0, #d0d0d0)';
+            
+            // Update explanation
+            explanationText.innerHTML = `
+                <p class="text-lg leading-relaxed">
+                    Anda sedang melihat simulasi <span class="text-indigo-400 font-semibold">GERHANA BULAN</span>. Gerhana terjadi ketika bumi berada di antara matahari dan bulan.
+                </p>
+                <ul class="list-disc list-inside space-y-2 ml-4">
+                    <li><strong>Posisi Bumi:</strong> Berada di antara matahari dan bulan</li>
+                    <li><strong>Bayangan Bumi:</strong> Jatuh di permukaan bulan</li>
+                    <li><strong>Waktu Terjadi:</strong> Hanya saat bulan purnama</li>
+                </ul>
+                <p class="text-lg leading-relaxed">
+                    Perhatikan bagaimana warna bulan berubah menjadi merah saat masuk ke bayangan bumi!
+                </p>
+            `;
+            
+            // Simulate eclipse phases
+            simulateLunarEclipse();
+        });
+
+        // Show orbit simulation
+        function showOrbitSimulation() {
+            currentSimulation = 'orbit';
+            orbitSimulation.style.display = 'block';
+            solarEclipseSimulation.style.display = 'none';
+            lunarEclipseSimulation.style.display = 'none';
+            eclipseCards.style.display = 'none';
+            
+            // Update explanation based on gravity state
+            if (gravityEnabled) {
+                explanationText.innerHTML = `
+                    <p class="text-lg leading-relaxed">
+                        Saat ini, gravitasi <span class="text-green-400 font-semibold">AKTIF</span>. Planet-planet bergerak pada orbitnya karena adanya keseimbangan sempurna antara dua gaya:
+                    </p>
+                    <ul class="list-disc list-inside space-y-2 ml-4">
+                        <li><strong>Gaya Gravitasi:</strong> Menarik planet menuju matahari</li>
+                        <li><strong>Gaya Sentrifugal:</strong> Mendorong planet menjauhi matahari karena kecepatan tangensialnya</li>
+                    </ul>
+                    <p class="text-lg leading-relaxed">
+                        Coba matikan gravitasi untuk melihat apa yang terjadi!
+                    </p>
+                `;
+            } else {
+                explanationText.innerHTML = `
+                    <p class="text-lg leading-relaxed">
+                        Saat ini, gravitasi <span class="text-red-400 font-semibold">NONAKTIF</span>. Tanpa gravitasi, planet-planet akan terus bergerak lurus sesuai hukum gerak Newton!
+                    </p>
+                    <ul class="list-disc list-inside space-y-2 ml-4">
+                        <li><strong>Hukum Gerak Newton I:</strong> Benda akan tetap bergerak lurus dengan kecepatan konstan jika tidak ada gaya yang bekerja</li>
+                        <li><strong>Arah Gerak:</strong> Planet bergerak lurus dengan arah tangensial terhadap orbit semula</li>
+                        <li><strong>Hasilnya:</strong> Planet akan "terbang" menjauhi tata surya!</li>
+                    </ul>
+                    <p class="text-lg leading-relaxed">
+                        Aktifkan kembali gravitasi untuk melihat planet kembali ke orbitnya.
+                    </p>
+                `;
+            }
+        }
+
+        // Simulate solar eclipse phases
+        function simulateSolarEclipse() {
+            let phase = 0;
+            const moonPath = solarEclipseSimulation.querySelector('.moon-path');
+            const phases = [
+                { name: 'Normal', progress: 0 },
+                { name: 'Gerhana Dimulai', progress: 20 },
+                { name: 'Gerhana Sebagian', progress: 40 },
+                { name: 'Gerhana Total', progress: 50 },
+                { name: 'Gerhana Sebagian', progress: 60 },
+                { name: 'Gerhana Berakhir', progress: 80 },
+                { name: 'Normal', progress: 100 }
+            ];
+            
+            const interval = setInterval(() => {
+                if (currentSimulation !== 'solarEclipse') {
+                    clearInterval(interval);
+                    return;
+                }
+                
+                // Get moon position
+                const moonRect = moonPath.getBoundingClientRect();
+                const containerRect = solarEclipseSimulation.getBoundingClientRect();
+                const moonX = moonRect.left - containerRect.left + moonRect.width / 2;
+                const containerCenter = containerRect.width / 2;
+                
+                // Calculate eclipse progress
+                const distance = Math.abs(moonX - containerCenter);
+                const maxDistance = containerRect.width / 2;
+                const progress = Math.max(0, 100 - (distance / maxDistance) * 100);
+                
+                // Update phase based on progress
+                for (let i = 0; i < phases.length; i++) {
+                    if (progress >= phases[i].progress && (i === phases.length - 1 || progress < phases[i + 1].progress)) {
+                        solarEclipsePhase.textContent = `Fase: ${phases[i].name}`;
+                        break;
+                    }
+                }
+            }, 100);
+        }
+
+        // Simulate lunar eclipse phases
+        function simulateLunarEclipse() {
+            let phase = 0;
+            const earthPath = lunarEclipseSimulation.querySelector('.earth-path');
+            const moon = lunarEclipseMoon;
+            const phases = [
+                { name: 'Normal', progress: 0, color: 'radial-gradient(circle at 30% 30%, #f0f0f0, #d0d0d0)' },
+                { name: 'Gerhana Dimulai', progress: 20, color: 'radial-gradient(circle at 30% 30%, #e0d0d0, #c0b0b0)' },
+                { name: 'Gerhana Sebagian', progress: 40, color: 'radial-gradient(circle at 30% 30%, #d0b0b0, #a08080)' },
+                { name: 'Gerhana Total', progress: 50, color: 'radial-gradient(circle at 30% 30%, #c06060, #803030)' },
+                { name: 'Gerhana Sebagian', progress: 60, color: 'radial-gradient(circle at 30% 30%, #d0b0b0, #a08080)' },
+                { name: 'Gerhana Berakhir', progress: 80, color: 'radial-gradient(circle at 30% 30%, #e0d0d0, #c0b0b0)' },
+                { name: 'Normal', progress: 100, color: 'radial-gradient(circle at 30% 30%, #f0f0f0, #d0d0d0)' }
+            ];
+            
+            const interval = setInterval(() => {
+                if (currentSimulation !== 'lunarEclipse') {
+                    clearInterval(interval);
+                    return;
+                }
+                
+                // Get earth position
+                const earthRect = earthPath.getBoundingClientRect();
+                const containerRect = lunarEclipseSimulation.getBoundingClientRect();
+                const earthX = earthRect.left - containerRect.left + earthRect.width / 2;
+                const containerCenter = containerRect.width / 2;
+                
+                // Calculate eclipse progress
+                const distance = Math.abs(earthX - containerCenter);
+                const maxDistance = containerRect.width / 2;
+                const progress = Math.max(0, 100 - (distance / maxDistance) * 100);
+                
+                // Update phase and color based on progress
+                for (let i = 0; i < phases.length; i++) {
+                    if (progress >= phases[i].progress && (i === phases.length - 1 || progress < phases[i + 1].progress)) {
+                        lunarEclipsePhase.textContent = `Fase: ${phases[i].name}`;
+                        moon.style.background = phases[i].color;
+                        break;
+                    }
+                }
+            }, 100);
+        }
+
+        // Planet hover effects
+        document.querySelectorAll('.planet').forEach(planet => {
+            planet.addEventListener('mouseenter', function() {
+                const planetName = this.getAttribute('data-planet');
+                const planetInfo = {
+                    mercury: 'Merkurius: Planet terdekat dengan matahari, mengorbit dalam 88 hari',
+                    venus: 'Venus: Planet terpanas, mengorbit dalam 225 hari',
+                    earth: 'Bumi: Planet kita, mengorbit dalam 365.25 hari',
+                    mars: 'Mars: Planet merah, mengorbit dalam 687 hari'
+                };
+                
+                // Create tooltip
+                const tooltip = document.createElement('div');
+                tooltip.className = 'absolute bg-gray-800 text-white px-3 py-2 rounded-lg text-sm z-50 pointer-events-none';
+                tooltip.textContent = planetInfo[planetName];
+                tooltip.style.left = '50%';
+                tooltip.style.bottom = '100%';
+                tooltip.style.transform = 'translateX(-50%) translateY(-10px)';
+                this.appendChild(tooltip);
+            });
+            
+            planet.addEventListener('mouseleave', function() {
+                const tooltip = this.querySelector('div');
+                if (tooltip) tooltip.remove();
+            });
+        });
+
+        // Start the simulation
+        init();
+    </script>
+</body>
+</html>
